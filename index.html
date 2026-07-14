@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>2026夏 九州北部旅行</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Meiryo', sans-serif;
+      background: #fffdf5;
+      color: #2d2820;
+      display: flex;
+      flex-direction: column;
+      /* height は JS で制御 */
+    }
+
+    /* ══ HEADER ══════════════════════════════════════ */
+    .header {
+      flex-shrink: 0;
+      /* 九州の写真を入れるなら linear-gradient の下に url('...') を追加。
+         未指定の間は玄界灘イメージのグラデーションで表示（画像切れ防止） */
+      background:
+        linear-gradient(135deg, rgba(18,82,120,0.85) 0%, rgba(12,52,84,0.92) 100%),
+        #12527a;
+      color: white;
+      padding: 14px 16px 12px;
+      text-align: center;
+      position: relative;
+    }
+    .header h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .header .sub {
+      font-size: 0.88rem;
+      opacity: 0.88;
+      margin-top: 2px;
+      letter-spacing: 0.05em;
+    }
+    .header .dates {
+      font-size: 0.73rem;
+      opacity: 0.65;
+      margin-top: 4px;
+    }
+    .countdown {
+      display: inline-block;
+      margin-top: 7px;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.38);
+      padding: 3px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+    .btn-all {
+      position: absolute;
+      right: 12px;
+      top: 14px;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.4);
+      color: white;
+      font-size: 0.7rem;
+      padding: 5px 10px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-all:hover, .btn-all:active { background: rgba(255,255,255,0.32); }
+
+    /* ══ MAIN LAYOUT ═════════════════════════════════ */
+    .main {
+      display: flex;
+      overflow: hidden;
+      /* height set by JS */
+    }
+
+    #map { flex: 1; min-width: 0; min-height: 0; }
+
+    /* ══ SIDEBAR ══════════════════════════════════════ */
+    .sidebar {
+      width: 300px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      background: #faf8f2;
+      border-left: 1px solid #e6dfc8;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sec-head {
+      padding: 8px 14px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #9a7850;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: #f2ede0;
+      border-top: 1px solid #e6dfc8;
+      border-bottom: 1px solid #e6dfc8;
+      flex-shrink: 0;
+    }
+
+    /* 空状態プレースホルダ（データ未投入時に表示） */
+    .empty-note {
+      padding: 16px 14px;
+      font-size: 0.78rem;
+      color: #b8ad95;
+      line-height: 1.7;
+      font-style: italic;
+    }
+
+    /* ── Day cards ── */
+    .day-card {
+      border-left: 4px solid transparent;
+      padding: 10px 14px 10px 11px;
+      cursor: pointer;
+      border-bottom: 1px solid #ede8db;
+      transition: background 0.12s;
+      flex-shrink: 0;
+    }
+    .day-card:hover  { background: #f0ead8; }
+    .day-card.active { background: #fff5e0; }
+
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px;
+    }
+    .card-emoji { font-size: 1.15rem; flex-shrink: 0; }
+    .card-label { font-weight: 700; font-size: 0.88rem; line-height: 1.2; }
+    .card-date  { font-size: 0.68rem; color: #aaa; margin-top: 1px; }
+
+    .spot-list { margin-left: 27px; }
+    .spot-item {
+      font-size: 0.77rem;
+      color: #666;
+      line-height: 1.6;
+      display: flex;
+      gap: 4px;
+      align-items: baseline;
+    }
+    .spot-item::before { content: "▸"; flex-shrink: 0; color: #ccc; font-size: 0.65rem; }
+    .spot-opt { color: #ccc; font-size: 0.7rem; }
+    .rest-note { margin-left: 27px; font-size: 0.77rem; color: #bbb; font-style: italic; }
+
+    /* ── Stay cards ── */
+    .stay-card {
+      padding: 10px 14px;
+      border-bottom: 1px solid #ede8db;
+      cursor: pointer;
+      transition: background 0.12s;
+      flex-shrink: 0;
+    }
+    .stay-card:hover { background: #f0ead8; }
+    .stay-head { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+    .stay-name   { font-weight: 700; font-size: 0.85rem; color: #5c3d22; }
+    .stay-nights { font-size: 0.68rem; color: #aaa; margin-top: 1px; }
+    .stay-location { margin-left: 27px; font-size: 0.72rem; color: #9a7850; margin-bottom: 3px; }
+    .stay-link {
+      display: inline-block;
+      margin-left: 27px;
+      font-size: 0.75rem;
+      color: #1d6fc4;
+      text-decoration: none;
+    }
+    .stay-link:hover { text-decoration: underline; }
+    .stay-no-url { margin-left: 27px; font-size: 0.72rem; color: #ccc; }
+
+    /* ── Footer ── */
+    .sidebar-footer {
+      padding: 10px 14px;
+      font-size: 0.68rem;
+      color: #ccc;
+      text-align: center;
+      border-top: 1px solid #ede8db;
+      margin-top: auto;
+    }
+
+    /* ══ MOBILE / TABLET PORTRAIT ════════════════════ */
+    @media (max-width: 720px) {
+      .main { flex-direction: column; overflow: visible; height: auto !important; }
+      #map  { height: 58vw !important; min-height: 280px; flex: none; }
+      .sidebar {
+        width: 100%;
+        height: auto !important;
+        overflow-y: visible;
+        border-left: none;
+        border-top: 1px solid #e6dfc8;
+      }
+      .btn-all {
+        position: static;
+        display: inline-block;
+        margin-top: 7px;
+      }
+      .header { padding-bottom: 10px; }
+      .header h1 { font-size: 1.2rem; }
+    }
+
+    /* ══ MARKERS ══════════════════════════════════════ */
+    .mkr {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2.5px solid #fff;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.42);
+    }
+    .stay-mkr {
+      width: 22px; height: 22px;
+      border-radius: 5px;
+      background: #7c5230;
+      border: 2.5px solid #fff;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.42);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; line-height: 1;
+    }
+
+    /* ══ POPUP ════════════════════════════════════════ */
+    .lpop-name { font-weight: 700; font-size: 0.9rem; }
+    .lpop-note { font-size: 0.78rem; color: #777; margin-top: 2px; }
+    .lpop-day  { font-size: 0.68rem; color: #bbb; margin-top: 2px; }
+    .lpop-link {
+      display: inline-block; margin-top: 6px;
+      font-size: 0.8rem; color: #1d6fc4; text-decoration: none;
+    }
+    .lpop-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <h1>🗾 2026夏 九州北部旅行</h1>
+  <div class="sub">九州北部 ― 滞在・訪問先は順次追加予定</div>
+  <div class="dates">2026年8月11日（火）〜 8月20日（木）　10日間</div>
+  <div class="countdown" id="countdown">…</div>
+  <button class="btn-all" id="btnAll">🗺️ 全体</button>
+</header>
+
+<div class="main" id="main">
+  <div id="map"></div>
+  <div class="sidebar" id="sidebar">
+    <div class="sec-head">📅 日程</div>
+    <div id="dayCards"></div>
+    <div class="sec-head">🏠 宿泊地</div>
+    <div id="stayCards"></div>
+    <div class="sidebar-footer">📝 随時アップデート予定</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════
+//  データ投入ガイド
+//  ─ 滞在・訪問情報が決まったら、下の DAYS / STAYS / ROUTE_SEGS に
+//    追記するだけで地図とサイドバーに反映される（HTML/CSS は触らない）。
+//  ─ 緯度経度は Google マップでピンを右クリック → 座標コピーで取得。
+// ══════════════════════════════════════════════════════════════
+
+// ══ 日程データ ═══════════════════════════════════════════════
+//  【1日分のフォーマット例】
+//   {
+//     n:1, date:"8/11（火）", label:"移動日", emoji:"✈️", color:"#94a3b8",
+//     rest:false,                                  // ← リモートワーク/休養日は true + note
+//     from:[35.5494,139.7798], to:[33.5859,130.4510], // ← その日の始点・終点（任意・移動線用）
+//     spots:[
+//       { name:"福岡空港",      lat:33.5859, lng:130.4510, note:"到着！" },
+//       { name:"太宰府天満宮",  lat:33.5215, lng:130.5350, note:"余力あれば", opt:true }
+//     ]
+//   },
+//  ※ opt:true は「行けたら」枠（サイドバーで淡色表示）
+//  ※ 色の目安：移動#94a3b8／神社仏閣#f97316／歴史#dc2626／自然#0d9488／休養#cbd5e1
+const DAYS = [
+  {
+    n:1, date:"8/11（火）", label:"福岡へ移動", emoji:"✈️", color:"#94a3b8",
+    rest:false,
+    from:[35.5494,139.7798], to:[33.5897,130.4207],
+    spots:[
+      { name:"福岡空港",           lat:33.5859, lng:130.4510, note:"午前の空路で福岡入り" },
+      { name:"福岡市博物館（金印）", lat:33.5931, lng:130.3517, note:"金印「漢委奴国王」／どちらか", opt:true },
+      { name:"福岡市科学館（大ピンチ展）", lat:33.5766, lng:130.3778, note:"鈴木のりたけ 大ピンチ展／どちらか", opt:true },
+      { name:"タイムズ博多駅前４丁目第９（カーシェア）", lat:33.5905, lng:130.4180, note:"8/11 13:00〜19:00 利用" }
+    ]
+  },
+  {
+    n:2, date:"8/12（水）", label:"吉野ヶ里遺跡", emoji:"🏺", color:"#dc2626",
+    rest:false,
+    from:[33.5897,130.4207], to:[33.5897,130.4207],
+    spots:[
+      { name:"吉野ヶ里歴史公園", lat:33.3244, lng:130.3831, note:"弥生時代の環濠集落（佐賀県）" }
+    ]
+  },
+  {
+    n:3, date:"8/13（木）", label:"仕事", emoji:"💻", color:"#cbd5e1",
+    rest:true, note:"リモートワーク日。宿でゆっくり。",
+    from:[33.5897,130.4207], to:[33.5897,130.4207],
+    spots:[{ name:"宿①（博多エリア）", lat:33.5897, lng:130.4207 }]
+  },
+  {
+    n:4, date:"8/14（金）", label:"太宰府天満宮・九州国立博物館", emoji:"⛩️", color:"#f97316",
+    rest:false,
+    from:[33.5897,130.4207], to:[33.5897,130.4207],
+    spots:[
+      { name:"太宰府天満宮",   lat:33.5215, lng:130.5350, note:"学問の神様" },
+      { name:"九州国立博物館", lat:33.5186, lng:130.5395 }
+    ]
+  },
+  {
+    n:5, date:"8/15（土）", label:"博多観光 or 宇宙科学館（検討中）", emoji:"🤔", color:"#a855f7",
+    rest:false,
+    from:[33.5897,130.4207], to:[33.5897,130.4207],
+    spots:[
+      { name:"博多観光（福岡市中心部）",         lat:33.5897, lng:130.4207, note:"検討中", opt:true },
+      { name:"佐賀県立宇宙科学館ゆめぎんが",     lat:33.1957, lng:129.9800, note:"検討中（武雄市）", opt:true }
+    ]
+  },
+  {
+    n:6, date:"8/16（日）", label:"別府へ移動・地獄めぐり", emoji:"♨️", color:"#0891b2",
+    rest:false,
+    from:[33.5897,130.4207], to:[33.2846,131.4911],
+    spots:[
+      { name:"別府地獄めぐり", lat:33.3239, lng:131.4837, note:"地獄蒸し・ぎょうざ（チェックアウト→電車で別府へ）" }
+    ]
+  },
+  {
+    n:7, date:"8/17（月）", label:"仕事（夜は温泉）", emoji:"💻", color:"#cbd5e1",
+    rest:true, note:"リモートワーク日。夜は温泉。ランチ：別府冷麺一番。",
+    from:[33.2846,131.4911], to:[33.2846,131.4911],
+    spots:[{ name:"宿②（別府）", lat:33.2846, lng:131.4911 }]
+  },
+  {
+    n:8, date:"8/18（火）", label:"ハーモニーランド", emoji:"🎀", color:"#ec4899",
+    rest:false,
+    from:[33.2846,131.4911], to:[33.2846,131.4911],
+    spots:[
+      { name:"ハーモニーランド", lat:33.3617, lng:131.5439, note:"サンリオ（日出町）" }
+    ]
+  },
+  {
+    n:9, date:"8/19（水）", label:"歴史スポット（検討中）", emoji:"🏯", color:"#a855f7",
+    rest:false,
+    from:[33.2846,131.4911], to:[33.2846,131.4911],
+    spots:[
+      { name:"別府周辺 歴史スポット", lat:33.2846, lng:131.4911, note:"歴史的なところ・検討中", opt:true }
+    ]
+  },
+  {
+    n:10, date:"8/20（木）", label:"別府→大分空港→帰宅", emoji:"🏠", color:"#94a3b8",
+    rest:false,
+    from:[33.2846,131.4911], to:[35.5494,139.7798],
+    spots:[
+      { name:"別府駅周辺",   lat:33.2794, lng:131.4907, note:"10〜14時 余裕時間・チェックアウト後" },
+      { name:"大分空港",     lat:33.4794, lng:131.7376, note:"別府駅→大分空港バス（B系統・別府駅前④のりば）" },
+      { name:"羽田へ帰宅",   lat:35.5494, lng:139.7798, note:"夕刻の空路で帰宅" }
+    ]
+  }
+];
+
+// ══ 宿泊データ（宿2軒）═══════════════════════════════════════
+//  【1軒分のフォーマット例】
+//   {
+//     name:"○○ Airbnb",
+//     nights:"8/11〜8/15（4泊）", note:"",
+//     location:"福岡県福岡市 ― ○○エリア拠点",
+//     lat:33.5900, lng:130.4000,
+//     url:"https://www.airbnb.jp/rooms/xxxxx"       // ← 未定なら url は省略可
+//   },
+const STAYS = [
+  {
+    name:"宿① 福岡（博多エリア）",
+    nights:"8/11〜8/16（前半5泊）", note:"",
+    location:"福岡県福岡市 ― 博多エリア拠点",
+    lat:33.5897, lng:130.4207,
+    url:"https://www.airbnb.jp/rooms/1225045911327439499"
+  },
+  {
+    name:"宿② 別府",
+    nights:"8/16〜8/20（後半4泊）", note:"",
+    location:"大分県別府市 ― 温泉・地獄めぐり拠点",
+    lat:33.2846, lng:131.4911,
+    url:"https://www.airbnb.jp/rooms/975944588906948868"
+  }
+];
+
+// ══ 宿→宿の移動セグメント（任意・ラベル付き点線）═══════════════
+//  【フォーマット例】
+//   { label:"Day1 移動：羽田 → 福岡（空路）", pts:[[35.5494,139.7798],[33.5859,130.4510]] },
+const ROUTE_SEGS = [
+  { label:"Day1 移動：羽田 → 福岡（空路）",                   pts:[[35.5494,139.7798],[33.5859,130.4510]] },
+  { label:"Day6 移動：博多 → 別府（電車）",                   pts:[[33.5897,130.4207],[33.2846,131.4911]] },
+  { label:"Day10 移動：別府 → 大分空港（バス）→ 羽田（空路）", pts:[[33.2846,131.4911],[33.4794,131.7376],[35.5494,139.7798]] }
+];
+
+// ══ カウントダウン ═══════════════════════════════════════════
+(function() {
+  const start = new Date('2026-08-11');
+  const end   = new Date('2026-08-21'); // 帰宅翌日
+  const now   = new Date(); now.setHours(0,0,0,0);
+  const diff  = Math.round((start - now) / 86400000);
+  const dayOf = Math.round((now - start) / 86400000) + 1;
+  let txt;
+  if (diff > 0) {
+    txt = `旅まであと ${diff} 日！`;
+  } else if (diff === 0) {
+    txt = '今日、出発！ ✈️';
+  } else if (now < end) {
+    const today    = DAYS[dayOf - 1];
+    const tomorrow = DAYS[dayOf];
+    if (!today) {
+      txt = '旅の途中 ✨';
+    } else {
+      const tLabel = `${today.emoji}${today.label}`;
+      const mLabel = tomorrow ? `${tomorrow.emoji}${tomorrow.label}` : '千葉へ帰宅🏠';
+      txt = `今日は${tLabel}　明日は${mLabel}`;
+    }
+  } else {
+    txt = '楽しい旅の思い出 ✨';
+  }
+  document.getElementById('countdown').textContent = txt;
+})();
+
+// ══ 地図 ════════════════════════════════════════════════════
+// 初期表示は九州北部を俯瞰（福岡・佐賀・長崎・大分・熊本を含む）
+const map = L.map('map', { center:[33.2, 130.7], zoom:8 });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom:18
+}).addTo(map);
+
+// ══ レイアウト高さ調整（タブレット・PC対応）══════════════════
+function adjustLayout() {
+  const isMobile = window.innerWidth <= 720;
+  const mainEl   = document.getElementById('main');
+  const sideEl   = document.getElementById('sidebar');
+  if (isMobile) {
+    mainEl.style.height = '';
+    sideEl.style.height = '';
+  } else {
+    const h = window.innerHeight - document.querySelector('.header').offsetHeight;
+    mainEl.style.height = h + 'px';
+    sideEl.style.height = h + 'px';
+  }
+  map.invalidateSize();
+}
+window.addEventListener('resize', adjustLayout);
+window.addEventListener('orientationchange', () => setTimeout(adjustLayout, 250));
+
+// ══ 宿→宿 移動セグメント（ラベル付き）════════════════════
+ROUTE_SEGS.forEach(seg => {
+  L.polyline(seg.pts, {
+    color: '#c0813a', weight: 4, opacity: 0.65, dashArray: '10, 7'
+  }).addTo(map).bindPopup(`<div style="font-size:0.82rem;font-weight:700;color:#7c4a10">${seg.label}</div>`);
+});
+
+// ══ ルートライン ════════════════════════════════════════════
+const allLL = DAYS.flatMap(d => d.spots.map(s => [s.lat, s.lng]));
+// 全体の薄いベースライン（スポットが2点以上あるときのみ）
+if (allLL.length >= 2) {
+  L.polyline(allLL, { color:'#9cb4c8', weight:1.5, opacity:0.25 }).addTo(map);
+}
+
+// 日ごとのカラーライン
+const dayPolylines = {};
+DAYS.forEach(d => {
+  if (d.spots.length < 2) return;
+  const poly = L.polyline(d.spots.map(s => [s.lat, s.lng]), {
+    color: d.color, weight:3, opacity:0.72
+  }).addTo(map);
+  dayPolylines[d.n] = poly;
+});
+
+// ══ 宿泊地マーカー ══════════════════════════════════════════
+STAYS.forEach(s => {
+  const icon = L.divIcon({
+    className:'',
+    html:'<div class="stay-mkr">🏠</div>',
+    iconSize:[22,22], iconAnchor:[11,11]
+  });
+  const linkHtml = s.url
+    ? `<a class="lpop-link" href="${safeUrl(s.url)}" target="_blank" rel="noopener noreferrer">予約ページを見る →</a>`
+    : `<span style="color:#ccc;font-size:0.75rem">（URL未登録）</span>`;
+  L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(`
+    <div class="lpop-name">🏠 ${s.name}</div>
+    <div class="lpop-note">${s.nights}${s.note ? '　' + s.note : ''}</div>
+    ${linkHtml}
+  `);
+});
+
+// ══ 観光地マーカー ═══════════════════════════════════════════
+const dayMarkersMap = {};
+DAYS.forEach(d => {
+  dayMarkersMap[d.n] = [];
+  d.spots.forEach(s => {
+    const icon = L.divIcon({
+      className:'',
+      html:`<div class="mkr" style="background:${d.color}"></div>`,
+      iconSize:[14,14], iconAnchor:[7,7]
+    });
+    const m = L.marker([s.lat, s.lng], { icon }).addTo(map);
+    m.bindPopup(`
+      <div class="lpop-name">${s.name}</div>
+      ${s.note ? `<div class="lpop-note">${s.note}</div>` : ''}
+      <div class="lpop-day">Day ${d.n}　${d.date}　${d.label}</div>
+    `);
+    dayMarkersMap[d.n].push(m);
+  });
+});
+
+// ══ 日程カード ═══════════════════════════════════════════════
+let routeOverlay = null;
+const dayCardsEl = document.getElementById('dayCards');
+if (DAYS.length === 0) {
+  dayCardsEl.innerHTML = '<div class="empty-note">日程はこれから追加します。<br>決まった順にこの欄へ反映されます。</div>';
+}
+DAYS.forEach(d => {
+  const card = document.createElement('div');
+  card.className = 'day-card';
+  card.style.borderLeftColor = d.color;
+
+  const body = d.rest
+    ? `<div class="rest-note">${d.note}</div>`
+    : `<div class="spot-list">${
+        d.spots.map(s =>
+          `<div class="spot-item">
+            ${s.name}
+            ${s.note && !s.opt ? `<span style="color:#d0c8b8">（${s.note}）</span>` : ''}
+            ${s.opt ? `<span class="spot-opt">（${s.note}）</span>` : ''}
+          </div>`
+        ).join('')
+      }</div>`;
+
+  card.innerHTML = `
+    <div class="card-head">
+      <span class="card-emoji">${d.emoji}</span>
+      <div>
+        <div class="card-label" style="color:${d.color}">${d.label}</div>
+        <div class="card-date">Day ${d.n} &middot; ${d.date}</div>
+      </div>
+    </div>
+    ${body}
+  `;
+
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.day-card').forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+    // ラインハイライト
+    Object.entries(dayPolylines).forEach(([n, poly]) => {
+      parseInt(n) === d.n
+        ? poly.setStyle({ weight:6, opacity:1 }) && poly.bringToFront()
+        : poly.setStyle({ weight:2, opacity:0.15 });
+    });
+    // 前宿→スポット→今夜の宿 のフルルートオーバーレイ
+    if (routeOverlay) { map.removeLayer(routeOverlay); routeOverlay = null; }
+    const fullPts = [
+      ...(d.from ? [d.from] : []),
+      ...d.spots.map(s => [s.lat, s.lng]),
+      ...(d.to ? [d.to] : [])
+    ];
+    if (fullPts.length >= 2) {
+      routeOverlay = L.polyline(fullPts, {
+        color: d.color, weight: 5, opacity: 0.92
+      }).addTo(map).bringToFront();
+    }
+    // バウンド（from/to含む）
+    const allPts = fullPts.length > 0 ? fullPts : d.spots.map(s => [s.lat, s.lng]);
+    if (allPts.length === 0) return;
+    const bounds = L.latLngBounds(allPts);
+    if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
+      map.setView(bounds.getCenter(), 13);
+    } else {
+      map.fitBounds(bounds, { padding:[60,60], maxZoom:13 });
+    }
+  });
+
+  dayCardsEl.appendChild(card);
+});
+
+// ══ 宿泊地カード ═════════════════════════════════════════════
+const stayCardsEl = document.getElementById('stayCards');
+if (STAYS.length === 0) {
+  stayCardsEl.innerHTML = '<div class="empty-note">宿2軒はこれから登録します。</div>';
+}
+STAYS.forEach(s => {
+  const card = document.createElement('div');
+  card.className = 'stay-card';
+
+  const linkHtml = s.url
+    ? `<a class="stay-link" href="${safeUrl(s.url)}" target="_blank" rel="noopener noreferrer">予約ページを見る →</a>`
+    : `<div class="stay-no-url">URL未登録</div>`;
+
+  card.innerHTML = `
+    <div class="stay-head">
+      <span class="card-emoji">🏠</span>
+      <div>
+        <div class="stay-name">${s.name}</div>
+        <div class="stay-nights">${s.nights}${s.note ? '　' + s.note : ''}</div>
+      </div>
+    </div>
+    ${s.location ? `<div class="stay-location">📍 ${s.location}</div>` : ''}
+    ${linkHtml}
+  `;
+
+  card.addEventListener('click', e => {
+    if (e.target.tagName === 'A') return; // リンククリックはそのまま
+    map.setView([s.lat, s.lng], 14);
+  });
+
+  stayCardsEl.appendChild(card);
+});
+
+// ══ 全体ボタン ═══════════════════════════════════════════════
+document.getElementById('btnAll').addEventListener('click', () => {
+  document.querySelectorAll('.day-card').forEach(c => c.classList.remove('active'));
+  Object.values(dayPolylines).forEach(p => p.setStyle({ weight:3, opacity:0.72 }));
+  if (routeOverlay) { map.removeLayer(routeOverlay); routeOverlay = null; }
+  if (allLL.length >= 2) {
+    map.fitBounds(L.latLngBounds(allLL), { padding:[30,30] });
+  } else {
+    map.setView([33.2, 130.7], 8); // データ未投入時は九州北部の俯瞰へ
+  }
+});
+
+// ══ URLサニタイズ（XSS対策）════════════════════════════════
+function safeUrl(url) {
+  return (url && /^https:\/\//.test(url)) ? url : '#';
+}
+
+// ══ 初期化完了後にレイアウト確定 ═════════════════════════════
+map.whenReady(adjustLayout);
+adjustLayout();
+</script>
+</body>
+</html>
