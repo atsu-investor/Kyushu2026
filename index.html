@@ -465,11 +465,20 @@ if (allLL.length >= 2) {
   L.polyline(allLL, { color:'#9cb4c8', weight:1.5, opacity:0.25 }).addTo(map);
 }
 
-// 日ごとのカラーライン
+// 日ごとのカラーライン（宿→訪問先→宿 の1日の動きを常時表示）
+//  ─ from（その日の出発＝前泊の宿/空港）と to（その日の到着＝今夜の宿/空港）を
+//    spots の前後にはさむことで、訪問先が1ヶ所の日でも宿との往復移動が線で見える。
 const dayPolylines = {};
 DAYS.forEach(d => {
-  if (d.spots.length < 2) return;
-  const poly = L.polyline(d.spots.map(s => [s.lat, s.lng]), {
+  const pts = [
+    ...(d.from ? [d.from] : []),
+    ...d.spots.map(s => [s.lat, s.lng]),
+    ...(d.to ? [d.to] : [])
+  ];
+  // 連続する同一座標を圧縮（休養日など宿に留まる日は点が潰れて線が出ない＝正しい挙動）
+  const uniq = pts.filter((p, i) => i === 0 || p[0] !== pts[i-1][0] || p[1] !== pts[i-1][1]);
+  if (uniq.length < 2) return;
+  const poly = L.polyline(uniq, {
     color: d.color, weight:3, opacity:0.72
   }).addTo(map);
   dayPolylines[d.n] = poly;
